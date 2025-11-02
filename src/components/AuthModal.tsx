@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { api, setAuthToken } from '../lib/api';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -11,8 +11,6 @@ export function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,13 +20,9 @@ export function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     setError('');
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
+      const response = await api.auth.login(email, password);
+      setAuthToken(response.token);
+      localStorage.setItem('userData', JSON.stringify(response.user));
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
@@ -43,27 +37,10 @@ export function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     setError('');
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        const { error: customerError } = await supabase
-          .from('customers')
-          .insert({
-            id: data.user.id,
-            name,
-            email,
-            phone,
-          });
-
-        if (customerError) throw customerError;
-
-        onSuccess();
-      }
+      const response = await api.auth.register(email, password);
+      setAuthToken(response.token);
+      localStorage.setItem('userData', JSON.stringify(response.user));
+      onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
     } finally {
@@ -87,37 +64,6 @@ export function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           </h2>
 
           <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp}>
-            {mode === 'signup' && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Enter your name"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Enter your phone number"
-                  />
-                </div>
-              </>
-            )}
 
             <div className="mb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { MapPin, Calendar, Clock } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
-
-type Movie = Database['public']['Tables']['movies']['Row'];
-type Show = Database['public']['Tables']['shows']['Row'];
-type Screen = Database['public']['Tables']['screens']['Row'];
-type Theater = Database['public']['Tables']['theaters']['Row'];
+import { MapPin, Clock } from 'lucide-react';
+import { api, type Movie, type Show } from '../lib/api';
 
 interface ShowWithDetails extends Show {
-  screen: Screen & {
-    theater: Theater;
+  screen: {
+    id: number;
+    name: string;
+    total_seats: number;
+    theater: {
+      id: number;
+      name: string;
+      location: string;
+    };
   };
 }
 
@@ -32,35 +33,22 @@ export function ShowSelection({ movie, onShowSelect, onBack }: ShowSelectionProp
 
   const loadShows = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('shows')
-      .select(`
-        *,
-        screen:screens(
-          *,
-          theater:theaters(*)
-        )
-      `)
-      .eq('movie_id', movie.id)
-      .gte('show_date', new Date().toISOString().split('T')[0])
-      .order('show_date', { ascending: true })
-      .order('show_time', { ascending: true });
-
-    if (error) {
-      console.error('Error loading shows:', error);
-    } else if (data) {
-      const showsWithDetails = data as unknown as ShowWithDetails[];
-      setShows(showsWithDetails);
+    try {
+      const data = await api.shows.getByMovieId(movie.id);
+      setShows(data);
 
       const uniqueDates = Array.from(
-        new Set(showsWithDetails.map((s) => s.show_date))
-      );
+        new Set(data.map((s: ShowWithDetails) => s.show_time.split('T')[0]))
+      ).sort();
       setDates(uniqueDates);
       if (uniqueDates.length > 0) {
         setSelectedDate(uniqueDates[0]);
       }
+    } catch (err) {
+      console.error('Error loading shows:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const formatDate = (dateStr: string) => {
@@ -75,15 +63,16 @@ export function ShowSelection({ movie, onShowSelect, onBack }: ShowSelectionProp
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
-  const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+  const formatTime = (dateTimeStr: string) => {
+    const date = new Date(dateTimeStr);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 || 12;
+    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const filteredShows = shows.filter((show) => show.show_date === selectedDate);
+  const filteredShows = shows.filter((show) => show.show_time.split('T')[0] === selectedDate);
   const showsByTheater = filteredShows.reduce((acc, show) => {
     const theaterName = show.screen.theater.name;
     if (!acc[theaterName]) {
@@ -125,7 +114,6 @@ export function ShowSelection({ movie, onShowSelect, onBack }: ShowSelectionProp
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <span className="bg-gray-200 px-2 py-1 rounded">{movie.rating}</span>
                 <span>{movie.genre}</span>
-                <span>{movie.language}</span>
                 <span>{movie.duration} min</span>
               </div>
             </div>
@@ -182,13 +170,10 @@ export function ShowSelection({ movie, onShowSelect, onBack }: ShowSelectionProp
                         <span>{formatTime(show.show_time)}</span>
                       </div>
                       <div className="text-sm text-gray-600 mb-1">
-                        {show.screen.screen_number}
-                      </div>
-                      <div className="text-xs text-gray-500 mb-2">
-                        {show.screen.screen_type}
+                        {show.screen.name}
                       </div>
                       <div className="text-sm font-bold text-gray-900">
-                        ₹{show.ticket_price}
+                        ${show.price.toFixed(2)}
                       </div>
                     </button>
                   ))}

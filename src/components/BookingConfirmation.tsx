@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { CheckCircle, CreditCard, Smartphone, Wallet } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
-
-type Show = Database['public']['Tables']['shows']['Row'];
-type Screen = Database['public']['Tables']['screens']['Row'];
-type Theater = Database['public']['Tables']['theaters']['Row'];
-type Movie = Database['public']['Tables']['movies']['Row'];
+import { api, type Show, type Movie } from '../lib/api';
 
 interface ShowWithDetails extends Show {
-  screen: Screen & {
-    theater: Theater;
+  screen: {
+    id: number;
+    name: string;
+    total_seats: number;
+    theater: {
+      id: number;
+      name: string;
+      location: string;
+    };
   };
 }
 
@@ -48,12 +49,13 @@ export function BookingConfirmation({
     });
   };
 
-  const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+  const formatTime = (dateTimeStr: string) => {
+    const date = new Date(dateTimeStr);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 || 12;
+    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
   const handlePayment = async () => {
@@ -61,69 +63,8 @@ export function BookingConfirmation({
     setError('');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError('Please sign in to complete booking');
-        setProcessing(false);
-        return;
-      }
-
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!customer) {
-        setError('Customer profile not found');
-        setProcessing(false);
-        return;
-      }
-
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          customer_id: customer.id,
-          show_id: show.id,
-          total_amount: totalAmount,
-          payment_status: 'completed',
-        })
-        .select()
-        .single();
-
-      if (bookingError || !booking) {
-        throw bookingError || new Error('Failed to create booking');
-      }
-
-      const seatInserts = seats.map((seat) => ({
-        booking_id: booking.id,
-        seat_number: seat,
-      }));
-
-      const { error: seatsError } = await supabase
-        .from('booking_seats')
-        .insert(seatInserts);
-
-      if (seatsError) {
-        throw seatsError;
-      }
-
-      const transactionId = `TXN${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          booking_id: booking.id,
-          amount: totalAmount,
-          payment_method: paymentMethod,
-          transaction_id: transactionId,
-        });
-
-      if (paymentError) {
-        throw paymentError;
-      }
-
+      const seatIds = seats.map((_, i) => i + 1);
+      await api.bookings.create(show.id, seatIds);
       setCompleted(true);
       setTimeout(() => {
         onComplete();
@@ -144,7 +85,7 @@ export function BookingConfirmation({
             Booking Confirmed!
           </h2>
           <p className="text-gray-600 mb-6">
-            Your tickets have been booked successfully. Check your email for details.
+            Your tickets have been booked successfully.
           </p>
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600 mb-1">Seats</p>
@@ -186,7 +127,7 @@ export function BookingConfirmation({
                 </h3>
                 <p className="text-sm text-gray-600 mb-1">{movie.genre}</p>
                 <p className="text-sm text-gray-600 mb-1">
-                  {movie.language} • {movie.rating}
+                  Rating: {movie.rating}
                 </p>
                 <p className="text-sm text-gray-600">{movie.duration} min</p>
               </div>
@@ -202,13 +143,13 @@ export function BookingConfirmation({
               <div className="flex justify-between">
                 <span className="text-gray-600">Screen</span>
                 <span className="font-semibold text-gray-900">
-                  {show.screen.screen_number}
+                  {show.screen.name}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Date</span>
                 <span className="font-semibold text-gray-900">
-                  {formatDate(show.show_date)}
+                  {formatDate(show.show_time)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -290,13 +231,13 @@ export function BookingConfirmation({
                     Ticket Price × {seats.length}
                   </span>
                   <span className="text-gray-900">
-                    ₹{(show.ticket_price * seats.length).toFixed(2)}
+                    ${(show.price * seats.length).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-3 border-t">
                   <span className="font-bold text-gray-900">Total Amount</span>
                   <span className="font-bold text-gray-900 text-xl">
-                    ₹{totalAmount.toFixed(2)}
+                    ${totalAmount.toFixed(2)}
                   </span>
                 </div>
               </div>

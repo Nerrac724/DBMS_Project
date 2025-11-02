@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
-
-type Show = Database['public']['Tables']['shows']['Row'];
-type Screen = Database['public']['Tables']['screens']['Row'];
-type Theater = Database['public']['Tables']['theaters']['Row'];
+import { api, type Show, type Seat } from '../lib/api';
 
 interface ShowWithDetails extends Show {
-  screen: Screen & {
-    theater: Theater;
+  screen: {
+    id: number;
+    name: string;
+    total_seats: number;
+    theater: {
+      id: number;
+      name: string;
+      location: string;
+    };
   };
 }
 
@@ -23,39 +25,35 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
   const [bookedSeats, setBookedSeats] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const rows = 10;
-  const seatsPerRow = 12;
-
   useEffect(() => {
-    loadBookedSeats();
+    loadSeats();
   }, [show.id]);
 
-  const loadBookedSeats = async () => {
+  const loadSeats = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('booking_seats')
-      .select(`
-        seat_number,
-        booking:bookings!inner(
-          show_id,
-          payment_status
-        )
-      `)
-      .eq('booking.show_id', show.id)
-      .in('booking.payment_status', ['completed', 'pending']);
-
-    if (error) {
-      console.error('Error loading booked seats:', error);
-    } else if (data) {
-      const seats = data.map((item) => item.seat_number);
-      setBookedSeats(seats);
+    try {
+      const data: Seat[] = await api.seats.getByShowId(show.id);
+      const booked = data.filter((s) => s.is_booked).map((s) => s.seat_number);
+      setBookedSeats(booked);
+    } catch (err) {
+      console.error('Error loading seats:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const generateSeatLabel = (row: number, seat: number) => {
-    const rowLabel = String.fromCharCode(65 + row);
-    return `${rowLabel}${seat + 1}`;
+  const generateSeats = () => {
+    const seats: string[] = [];
+    const totalSeats = show.screen.total_seats;
+    const seatsPerRow = Math.ceil(totalSeats / 10);
+
+    for (let i = 0; i < totalSeats; i++) {
+      const row = Math.floor(i / seatsPerRow);
+      const seatNum = (i % seatsPerRow) + 1;
+      const rowLabel = String.fromCharCode(65 + row);
+      seats.push(`${rowLabel}${seatNum}`);
+    }
+    return seats;
   };
 
   const toggleSeat = (seatLabel: string) => {
@@ -78,7 +76,8 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
     return 'bg-gray-200 hover:bg-gray-300';
   };
 
-  const totalAmount = selectedSeats.length * show.ticket_price;
+  const totalAmount = selectedSeats.length * show.price;
+  const allSeats = generateSeats();
 
   const handleConfirm = () => {
     if (selectedSeats.length === 0) return;
@@ -110,13 +109,13 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
                 Select Seats
               </h1>
               <p className="text-gray-600">
-                {show.screen.theater.name} - {show.screen.screen_number}
+                {show.screen.theater.name} - {show.screen.name}
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-600">Price per seat</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₹{show.ticket_price}
+                ${show.price.toFixed(2)}
               </p>
             </div>
           </div>
@@ -130,28 +129,33 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
 
         <div className="flex justify-center mb-8">
           <div className="inline-block">
-            {Array.from({ length: rows }).map((_, rowIndex) => (
+            {Array.from({ length: 10 }).map((_, rowIndex) => (
               <div key={rowIndex} className="flex items-center gap-2 mb-2">
                 <div className="w-8 text-center font-semibold text-gray-600">
                   {String.fromCharCode(65 + rowIndex)}
                 </div>
                 <div className="flex gap-2">
-                  {Array.from({ length: seatsPerRow }).map((_, seatIndex) => {
-                    const seatLabel = generateSeatLabel(rowIndex, seatIndex);
-                    return (
-                      <button
-                        key={seatLabel}
-                        onClick={() => toggleSeat(seatLabel)}
-                        disabled={bookedSeats.includes(seatLabel)}
-                        className={`w-8 h-8 rounded-t-lg text-xs font-semibold text-white transition-colors ${getSeatClassName(
-                          seatLabel
-                        )}`}
-                        title={seatLabel}
-                      >
-                        {seatIndex + 1}
-                      </button>
-                    );
-                  })}
+                  {Array.from({ length: Math.ceil(show.screen.total_seats / 10) }).map(
+                    (_, seatIndex) => {
+                      const index = rowIndex * Math.ceil(show.screen.total_seats / 10) + seatIndex;
+                      if (index >= allSeats.length) return null;
+
+                      const seatLabel = allSeats[index];
+                      return (
+                        <button
+                          key={seatLabel}
+                          onClick={() => toggleSeat(seatLabel)}
+                          disabled={bookedSeats.includes(seatLabel)}
+                          className={`w-8 h-8 rounded-t-lg text-xs font-semibold text-white transition-colors ${getSeatClassName(
+                            seatLabel
+                          )}`}
+                          title={seatLabel}
+                        >
+                          {seatIndex + 1}
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               </div>
             ))}
@@ -190,7 +194,7 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Total Amount</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{totalAmount.toFixed(2)}
+                    ${totalAmount.toFixed(2)}
                   </p>
                 </div>
                 <button

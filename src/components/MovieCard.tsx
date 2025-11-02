@@ -1,7 +1,5 @@
-import { Film, Clock, Globe } from 'lucide-react';
-import type { Database } from '../lib/supabase';
-
-type Movie = Database['public']['Tables']['movies']['Row'];
+import { Film, Clock } from 'lucide-react';
+import { type Movie } from '../lib/api';
 
 interface MovieCardProps {
   movie: Movie;
@@ -29,10 +27,6 @@ export function MovieCard({ movie, onBookNow }: MovieCardProps) {
           <div className="flex items-center gap-1">
             <Film size={16} />
             <span>{movie.genre}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Globe size={16} />
-            <span>{movie.language}</span>
           </div>
           <div className="flex items-center gap-1">
             <Clock size={16} />

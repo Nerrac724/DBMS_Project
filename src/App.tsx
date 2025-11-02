@@ -1,25 +1,31 @@
 import { useState, useEffect } from 'react';
 import { Film, User, LogOut, Menu, X } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { api, getAuthToken, type Movie, type Show } from './lib/api';
 import { MovieCard } from './components/MovieCard';
 import { ShowSelection } from './components/ShowSelection';
 import { SeatSelection } from './components/SeatSelection';
 import { BookingConfirmation } from './components/BookingConfirmation';
 import { AuthModal } from './components/AuthModal';
-import type { Database } from './lib/supabase';
-
-type Movie = Database['public']['Tables']['movies']['Row'];
-type Show = Database['public']['Tables']['shows']['Row'];
-type Screen = Database['public']['Tables']['screens']['Row'];
-type Theater = Database['public']['Tables']['theaters']['Row'];
 
 interface ShowWithDetails extends Show {
-  screen: Screen & {
-    theater: Theater;
+  screen: {
+    id: number;
+    name: string;
+    total_seats: number;
+    theater: {
+      id: number;
+      name: string;
+      location: string;
+    };
   };
 }
 
 type AppView = 'movies' | 'shows' | 'seats' | 'confirmation';
+
+interface AuthUser {
+  id: number;
+  email: string;
+}
 
 function App() {
   const [view, setView] = useState<AppView>('movies');
@@ -28,7 +34,7 @@ function App() {
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,37 +42,31 @@ function App() {
   useEffect(() => {
     checkUser();
     loadMovies();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   }, []);
 
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
+  const checkUser = () => {
+    const token = getAuthToken();
+    if (token) {
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        setUser(JSON.parse(userData));
+      }
+    }
     setLoading(false);
   };
 
   const loadMovies = async () => {
-    const { data, error } = await supabase
-      .from('movies')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading movies:', error);
-    } else {
-      setMovies(data || []);
+    try {
+      const data = await api.movies.getAll();
+      setMovies(data);
+    } catch (err) {
+      console.error('Error loading movies:', err);
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userData');
     setUser(null);
   };
 
