@@ -124,7 +124,7 @@ function App() {
               <div className="flex items-center justify-between h-16">
                 <div className="flex items-center gap-3">
                   <Film size={32} />
-                  <h1 className="text-2xl font-bold">MovieBook</h1>
+                  <h1 className="text-2xl font-bold">ShowtimeDB</h1>
                 </div>
 
                 <div className="hidden md:flex items-center gap-4">
