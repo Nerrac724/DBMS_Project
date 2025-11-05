@@ -96,6 +96,13 @@ export function BookingConfirmation({
     );
   }
 
+const formatINR = (value: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0
+  }).format(value);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm">
@@ -231,13 +238,13 @@ export function BookingConfirmation({
                     Ticket Price × {seats.length}
                   </span>
                   <span className="text-gray-900">
-                    ${(show.price * seats.length).toFixed(2)}
+                    {formatINR(show.price * seats.length)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-3 border-t">
                   <span className="font-bold text-gray-900">Total Amount</span>
                   <span className="font-bold text-gray-900 text-xl">
-                    ${totalAmount.toFixed(2)}
+                    {formatINR(totalAmount)}
                   </span>
                 </div>
               </div>

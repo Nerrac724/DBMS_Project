@@ -24,6 +24,7 @@ export function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       setAuthToken(response.token);
       localStorage.setItem('userData', JSON.stringify(response.user));
       onSuccess();
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {

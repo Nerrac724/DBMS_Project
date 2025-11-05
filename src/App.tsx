@@ -45,7 +45,7 @@ function App() {
   }, []);
 
   const checkUser = () => {
-    const token = getAuthToken();
+    const token = localStorage.getItem('authToken');
     if (token) {
       const userData = localStorage.getItem('userData');
       if (userData) {

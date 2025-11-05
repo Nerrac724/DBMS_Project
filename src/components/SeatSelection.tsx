@@ -92,6 +92,12 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
     );
   }
 
+const formatINR = (value: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR"
+  }).format(value);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-white shadow-sm">
@@ -115,7 +121,7 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
             <div className="text-right">
               <p className="text-sm text-gray-600">Price per seat</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${show.price.toFixed(2)}
+                {formatINR(show.price)}
               </p>
             </div>
           </div>
@@ -194,7 +200,7 @@ export function SeatSelection({ show, onConfirm, onBack }: SeatSelectionProps) {
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Total Amount</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ${totalAmount.toFixed(2)}
+                    {formatINR(totalAmount)}
                   </p>
                 </div>
                 <button
