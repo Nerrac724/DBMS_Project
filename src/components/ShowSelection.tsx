@@ -173,7 +173,10 @@ export function ShowSelection({ movie, onShowSelect, onBack }: ShowSelectionProp
                         {show.screen.name}
                       </div>
                       <div className="text-sm font-bold text-gray-900">
-                        ${show.price.toFixed(2)}
+                        {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR"
+                        }).format(show.price)}
                       </div>
                     </button>
                   ))}
